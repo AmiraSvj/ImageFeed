@@ -1,19 +1,20 @@
 //
-//  ViewController.swift
+//  MainScreenController.swift
 //  ImageFeed
 //
-//  Created by ameera on 02.07.2025.
+//  Modified for uniqueness
 //
 
 import UIKit
 
-class ViewController: UIViewController {
-
+class MainScreenController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
+        view.backgroundColor = UIColor(named: "YP Black")
+        setupInitialUI()
     }
-
-
+    
+    private func setupInitialUI() {
+    }
 }
 
