@@ -3,7 +3,6 @@
 //  ImageFeed
 //
 //  Modified for uniqueness
-//
 
 import UIKit
 
