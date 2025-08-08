@@ -1,6 +1,8 @@
 import UIKit
 
 final class PhotoFeedController: UIViewController {
+    private let fullScreenImageSegueID = "ShowFullScreenImage"
+    
     @IBOutlet private weak var feedTable: UITableView!
     
     private let imageNames: [String] = (0..<20).map { String($0) }
@@ -18,9 +20,25 @@ final class PhotoFeedController: UIViewController {
         feedTable.rowHeight = 200
         feedTable.contentInset = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
     }
+    
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        if segue.identifier == fullScreenImageSegueID {
+            guard 
+                let destinationVC = segue.destination as? FullScreenImageController,
+                let indexPath = sender as? IndexPath
+            else {
+                assertionFailure("Invalid segue destination")
+                return
+            }
+            
+            let selectedImg = UIImage(named: imageNames[indexPath.row])
+            destinationVC.selectedImage = selectedImg
+        } else {
+            super.prepare(for: segue, sender: sender)
+        }
+    }
 }
 
-// MARK: - UITableViewDataSource
 extension PhotoFeedController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         imageNames.count
@@ -34,7 +52,6 @@ extension PhotoFeedController: UITableViewDataSource {
     }
 }
 
-// MARK: - Cell Configuration
 private extension PhotoFeedController {
     func configure(cell: PhotoFeedCell, at indexPath: IndexPath) {
         guard let img = UIImage(named: imageNames[indexPath.row]) else { return }
@@ -46,9 +63,9 @@ private extension PhotoFeedController {
     }
 }
 
-// MARK: - UITableViewDelegate
 extension PhotoFeedController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        performSegue(withIdentifier: fullScreenImageSegueID, sender: indexPath)
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
