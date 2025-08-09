@@ -44,7 +44,7 @@ final class UserProfileController: UIViewController {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.setImage(UIImage(named: "logout_button"), for: .normal)
-        button.tintColor = .white
+        button.tintColor = UIColor(red: 0.961, green: 0.420, blue: 0.424, alpha: 1.0)
         button.addTarget(self, action: #selector(handleSignOutTap), for: .touchUpInside)
         return button
     }()
