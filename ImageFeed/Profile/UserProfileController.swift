@@ -91,5 +91,39 @@ final class UserProfileController: UIViewController {
     }
     
     @objc private func handleSignOutTap() {
+        // Показываем алерт для подтверждения выхода
+        let alert = UIAlertController(
+            title: "Выйти?",
+            message: "Уверены, что хотите выйти?",
+            preferredStyle: .alert
+        )
+        
+        let cancelAction = UIAlertAction(title: "Отмена", style: .cancel)
+        let logoutAction = UIAlertAction(title: "Выйти", style: .destructive) { [weak self] _ in
+            self?.performLogout()
+        }
+        
+        alert.addAction(cancelAction)
+        alert.addAction(logoutAction)
+        
+        present(alert, animated: true)
+    }
+    
+    private func performLogout() {
+        // Возвращаемся на экран авторизации
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first {
+            let storyboard = UIStoryboard(name: "Main", bundle: nil)
+            guard let authViewController = storyboard.instantiateViewController(withIdentifier: "auth-view-controller") as? AuthViewController else {
+                return
+            }
+            
+            let navigationController = UINavigationController(rootViewController: authViewController)
+            UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: {
+                window.rootViewController = navigationController
+            }, completion: { _ in
+                window.makeKeyAndVisible()
+            })
+        }
     }
 } 
