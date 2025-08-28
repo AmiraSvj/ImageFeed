@@ -5,10 +5,12 @@ enum Constants {
     static let secretKey = "lkSavUfOXGu9gygHPttC-BzjSg3zdXqWFVbybrvZs3o"
     static let redirectURI = "urn:ietf:wg:oauth:2.0:oob"
     static let accessScope = "public"
-    static let defaultBaseURL = "https://api.unsplash.com"
+    static var defaultBaseURL: URL? {
+        return URL(string: "https://api.unsplash.com")
+    }
     static let applicationID = "797310"
     
     static func validateCredentials() -> Bool {
-        return !accessKey.isEmpty && !secretKey.isEmpty && !redirectURI.isEmpty
+        return accessKey.count > 0 && secretKey.count > 0 && redirectURI.count > 0
     }
 } 

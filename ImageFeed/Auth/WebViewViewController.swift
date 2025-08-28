@@ -36,6 +36,7 @@ final class WebViewViewController: UIViewController {
         print("🌐 WebViewViewController viewDidLoad")
         setupUI()
         setupNavigationBar()
+        clearWebViewCache() // Очищаем кеш перед загрузкой
         loadOAuthPage()
         observeProgress()
     }
@@ -166,7 +167,7 @@ final class WebViewViewController: UIViewController {
                 WKWebsiteDataTypeSessionStorage
             ],
             modifiedSince: Date(timeIntervalSince1970: 0)
-        ) { [weak self] in
+        ) {
             DispatchQueue.main.async {
                 print("✅ WebView cache cleared successfully")
             }
@@ -181,11 +182,11 @@ extension WebViewViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         if let code = code(from: navigationAction) {
             print("✅ Authorization successful! Received code: \(code)")
-            clearWebViewCache()
             decisionHandler(.cancel)
             
             DispatchQueue.main.async { [weak self] in
-                self?.delegate?.webViewViewController(self!, didAuthenticateWithCode: code)
+                guard let self = self else { return }
+                self.delegate?.webViewViewController(self, didAuthenticateWithCode: code)
             }
         } else {
             print("✅ Allowing navigation to: \(navigationAction.request.url?.absoluteString ?? "unknown")")
@@ -193,11 +194,11 @@ extension WebViewViewController: WKNavigationDelegate {
         }
     }
     
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation?, withError error: Error) {
         print("❌ WebView navigation failed: \(error.localizedDescription)")
     }
     
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation?, withError error: Error) {
         print("❌ WebView provisional navigation failed: \(error.localizedDescription)")
         
         if (error as NSError).code == 102 {
@@ -205,7 +206,7 @@ extension WebViewViewController: WKNavigationDelegate {
         }
     }
     
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
         print("🌐 WebView finished loading: \(webView.url?.absoluteString ?? "unknown")")
     }
     

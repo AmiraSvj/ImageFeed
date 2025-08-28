@@ -67,16 +67,9 @@ class SplashViewController: UIViewController {
         if segue.identifier == "ShowAuthenticationScreen" {
             if let navigationController = segue.destination as? UINavigationController,
                let authViewController = navigationController.topViewController as? AuthViewController {
-                authViewController.delegate = self
+                // Делегат больше не нужен, так как AuthViewController сам обрабатывает успешную авторизацию
+                print("🔗 Connected to AuthViewController")
             }
         }
-    }
-}
-
-// MARK: - AuthViewControllerDelegate
-extension SplashViewController: AuthViewControllerDelegate {
-    func didAuthenticate(_ vc: AuthViewController) {
-        // Этот метод больше не используется, но оставляем для совместимости
-        print("🎉 Authentication successful (legacy method)")
     }
 } 

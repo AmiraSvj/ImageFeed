@@ -1,17 +1,9 @@
 import UIKit
 
-// MARK: - AuthViewControllerDelegate Protocol
-
-protocol AuthViewControllerDelegate: AnyObject {
-    func didAuthenticate(_ vc: AuthViewController)
-}
-
 final class AuthViewController: UIViewController {
     
     @IBOutlet private var logoImageView: UIImageView!
     @IBOutlet private var loginButton: UIButton!
-    
-    weak var delegate: AuthViewControllerDelegate?
     private let oauth2Service = OAuth2Service.shared
     private var isFetchingToken = false
     private var isShowingAlert = false
@@ -76,7 +68,7 @@ final class AuthViewController: UIViewController {
     
     private func showAlert(title: String, message: String) {
         // Проверяем, что view controller находится в иерархии и активен
-        guard isViewLoaded && view.window != nil && !isBeingDismissed && !isMovingFromParent else {
+        guard isViewLoaded && view.window != nil && isBeingDismissed == false && isMovingFromParent == false else {
             print("View controller not in hierarchy or being dismissed, skipping alert: \(title)")
             return
         }
@@ -98,7 +90,7 @@ final class AuthViewController: UIViewController {
             guard let self = self else { return }
             
             // Дополнительная проверка перед показом
-            guard self.isViewLoaded && self.view.window != nil && !self.isBeingDismissed && !self.isMovingFromParent else {
+            guard self.isViewLoaded && self.view.window != nil && self.isBeingDismissed == false && self.isMovingFromParent == false else {
                 print("View controller no longer valid before alert presentation, skipping")
                 self.isShowingAlert = false
                 return
@@ -151,10 +143,23 @@ extension AuthViewController: WebViewViewControllerDelegate {
     func webViewViewController(_ vc: WebViewViewController, didAuthenticateWithCode code: String) {
         print("✅ Authentication successful with code: \(code)")
         
-        // Закрываем WebView
-        vc.dismiss(animated: true) {
-            // Сразу переходим к главному экрану, не показывая AuthViewController
-            self.switchToMainScreen()
+        // Сначала получаем токен
+        OAuth2Service.shared.fetchOAuthToken(code: code) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let token):
+                    print("🎉 Token received and saved: \(String(token.prefix(10)))...")
+                    // Закрываем WebView
+                    vc.dismiss(animated: true) { [weak self] in
+                        // После закрытия WebView переключаемся на главный экран
+                        self?.switchToMainScreen(animated: false)
+                    }
+                case .failure(let error):
+                    print("❌ Failed to get token: \(error)")
+                    // Показываем ошибку и остаемся на экране авторизации
+                    self?.showAlert(title: "Ошибка авторизации", message: error.localizedDescription)
+                }
+            }
         }
     }
     
@@ -165,23 +170,29 @@ extension AuthViewController: WebViewViewControllerDelegate {
         vc.dismiss(animated: true)
     }
     
-    private func switchToMainScreen() {
-        // Получаем доступ к главному окну
+    private func switchToMainScreen(animated: Bool) {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
             print("❌ Failed to get window")
             return
         }
         
-        // Создаем TabBarController
         let storyboard = UIStoryboard(name: "Main", bundle: nil)
         guard let tabBarController = storyboard.instantiateViewController(withIdentifier: "TabBarViewController") as? UITabBarController else {
             print("❌ Failed to create TabBarController")
             return
         }
         
-        // Переключаемся к главному экрану
-        window.rootViewController = tabBarController
+        if animated {
+            UIView.transition(with: window, duration: 0.25, options: .transitionCrossDissolve, animations: {
+                window.rootViewController = tabBarController
+            })
+        } else {
+            UIView.performWithoutAnimation {
+                window.rootViewController = tabBarController
+                window.layoutIfNeeded()
+            }
+        }
         print("🎉 Switched to main screen")
     }
 } 
