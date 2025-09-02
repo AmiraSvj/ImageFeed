@@ -1,75 +1,102 @@
 import UIKit
+import ProgressHUD
 
-class SplashViewController: UIViewController {
-    
-    private let storage = OAuth2TokenStorage()
-    
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupUI()
-    }
-    
-    override var preferredStatusBarStyle: UIStatusBarStyle {
-        return .lightContent
-    }
-    
+final class SplashViewController: UIViewController {
+    private let showAuthenticationScreenSegueIdentifier = "ShowAuthenticationScreen"
+
+    private let profileService = ProfileService.shared
+    private let storage = OAuth2TokenStorage.shared
+
+    private var imageView: UIImageView!
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        
-        print("🚀 SplashViewController viewDidAppear")
-        print("🔑 Token exists: \(storage.token != nil)")
-        
-        if storage.token != nil {
-            print("✅ User is authenticated, switching to TabBarController")
+
+        setupImageView()
+
+        if let token = storage.token {
             switchToTabBarController()
+            fetchProfile(token: token)
         } else {
-            print("❌ No token, showing authentication screen")
-            // Показываем экран авторизации через segue
-            performSegue(withIdentifier: "ShowAuthenticationScreen", sender: nil)
+            performSegue(withIdentifier: showAuthenticationScreenSegueIdentifier, sender: nil)
         }
     }
-    
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         setNeedsStatusBarAppearanceUpdate()
     }
-    
-    private func setupUI() {
-        view.backgroundColor = UIColor(named: "YP Black")
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        .lightContent
     }
-    
+
+    private func setupImageView() {
+        imageView = UIImageView()
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.image = UIImage(named: "splash_screen_logo")
+        view.addSubview(imageView)
+
+        NSLayoutConstraint.activate([
+            imageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
+    }
+
     private func switchToTabBarController() {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
             assertionFailure("Invalid window configuration")
             return
         }
-        
-        // Получаем TabBarController из сториборда
-        let storyboard = UIStoryboard(name: "Main", bundle: nil)
-        guard let tabBarController = storyboard.instantiateViewController(withIdentifier: "TabBarViewController") as? UITabBarController else {
-            assertionFailure("Failed to instantiate TabBarController from storyboard")
-            return
-        }
-        
+        let storyboard = UIStoryboard(name: "Main", bundle: .main)
+        let tabBarController = storyboard.instantiateViewController(withIdentifier: "TabBarViewController")
         window.rootViewController = tabBarController
-        
-        // Обновляем статус бар
-        tabBarController.setNeedsStatusBarAppearanceUpdate()
-    }
-    
-    private func showAuthViewController() {
-        // Используем segue из сториборда
-        performSegue(withIdentifier: "ShowAuthenticationScreen", sender: nil)
+        window.makeKeyAndVisible()
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        if segue.identifier == "ShowAuthenticationScreen" {
-            if let navigationController = segue.destination as? UINavigationController,
-               let authViewController = navigationController.topViewController as? AuthViewController {
-                // Делегат больше не нужен, так как AuthViewController сам обрабатывает успешную авторизацию
-                print("🔗 Connected to AuthViewController")
+        if segue.identifier == showAuthenticationScreenSegueIdentifier {
+            guard
+                let navigationController = segue.destination as? UINavigationController,
+                let viewController = navigationController.viewControllers[0] as? AuthViewController
+            else {
+                assertionFailure("Failed to prepare for \(showAuthenticationScreenSegueIdentifier)")
+                return
+            }
+            viewController.delegate = self
+        } else {
+            super.prepare(for: segue, sender: nil)
+        }
+    }
+
+    private func fetchProfile(token: String) {
+        UIBlockingProgressHUD.show()
+        profileService.fetchProfile(token) { [weak self] result in
+            UIBlockingProgressHUD.dismiss()
+
+            guard let self = self else { return }
+
+            switch result {
+            case let .success(profile):
+                ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
+                self.switchToTabBarController()
+
+            case let .failure(error):
+                print("❌ [SplashViewController]: Ошибка загрузки профиля: \(error.localizedDescription)")
+                // TODO [Sprint 11] Покажите ошибку получения профиля
+                break
             }
         }
+    }
+}
+
+// MARK: - AuthViewControllerDelegate
+
+extension SplashViewController: AuthViewControllerDelegate {
+    func didAuthenticate(_ vc: AuthViewController) {
+        vc.dismiss(animated: true)
+        
+        switchToTabBarController()
     }
 } 
