@@ -50,14 +50,9 @@ final class ProfileImageService {
 
                 self.avatarURL = userResult.profileImage.small
                 completion(.success(userResult.profileImage.small))
-                NotificationCenter.default
-                    .post(
-                        name: ProfileImageService.didChangeNotification,
-                        object: self,
-                        userInfo: ["URL": userResult.profileImage.small])
 
             case .failure(let error):
-                print("[fetchProfileImageURL]: NetworkError - \(error.localizedDescription)")
+                print("[ProfileImageService.fetchProfileImageURL]: NetworkError - \(error.localizedDescription) username=\(username)")
                 completion(.failure(error))
             }
         }
@@ -75,5 +70,10 @@ final class ProfileImageService {
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         return request
+    }
+    
+    func clearAvatarURL() {
+        avatarURL = nil
+        print("🔐 [ProfileImageService]: URL аватара очищен")
     }
 } 

@@ -23,17 +23,24 @@ final class WebViewViewController: UIViewController {
 
         webView.navigationDelegate = self
 
+        configureNavigationBarAppearance()
         loadAuthView()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(false, animated: false)
+        navigationItem.backButtonDisplayMode = .minimal
+        navigationController?.navigationBar.tintColor = .black
     }
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         estimatedProgressObservation = webView.observe(
             \.estimatedProgress,
-             options: [],
+             options: [.new],
              changeHandler: { [weak self] _, _ in
-                 guard let self = self else { return }
-                 self.updateProgress()
+                 self?.updateProgress()
              })
         updateProgress()
     }
@@ -41,6 +48,16 @@ final class WebViewViewController: UIViewController {
     private func updateProgress() {
         progressView.progress = Float(webView.estimatedProgress)
         progressView.isHidden = fabs(webView.estimatedProgress - 1.0) <= 0.0001
+    }
+    
+    private func configureNavigationBarAppearance() {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = .white
+        appearance.titleTextAttributes = [.foregroundColor: UIColor.black]
+        navigationController?.navigationBar.standardAppearance = appearance
+        navigationController?.navigationBar.scrollEdgeAppearance = appearance
+        navigationController?.navigationBar.tintColor = .black
     }
     
     private func loadAuthView() {
@@ -59,15 +76,9 @@ final class WebViewViewController: UIViewController {
             return
         }
         
-        // Добавляем логирование для отладки
-        print("🔐 [WebViewViewController]: URL для авторизации: \(url.absoluteString)")
-        print("🔐 [WebViewViewController]: client_id: \(Constants.accessKey)")
-        print("🔐 [WebViewViewController]: redirect_uri: \(Constants.redirectURI)")
-        print("🔐 [WebViewViewController]: scope: \(Constants.accessScope)")
-        
         let request = URLRequest(url: url)
         webView.load(request)
-
+        
         updateProgress()
     }
 }
@@ -78,47 +89,24 @@ extension WebViewViewController: WKNavigationDelegate {
         decidePolicyFor navigationAction: WKNavigationAction,
         decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
     ) {
-        print("🔐 [WebViewViewController]: Navigation action: \(navigationAction.request.url?.absoluteString ?? "nil")")
         
         if let code = code(from: navigationAction) {
-            print("🔐 [WebViewViewController]: ✅ Code extracted successfully: \(code)")
             delegate?.webViewViewController(self, didAuthenticateWithCode: code)
             decisionHandler(.cancel)
         } else {
-            print("🔐 [WebViewViewController]: ❌ No code found, allowing navigation")
             decisionHandler(.allow)
         }
     }
     
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        print("🔐 [WebViewViewController]: Page loaded: \(webView.url?.absoluteString ?? "nil")")
-    }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { }
 
     private func code(from navigationAction: WKNavigationAction) -> String? {
-        if let url = navigationAction.request.url {
-            print("🔐 [WebViewViewController]: Navigation URL: \(url.absoluteString)")
-            
-            if let urlComponents = URLComponents(string: url.absoluteString) {
-                print("🔐 [WebViewViewController]: Path: \(urlComponents.path)")
-                print("🔐 [WebViewViewController]: Host: \(urlComponents.host ?? "nil")")
-                print("🔐 [WebViewViewController]: Query items: \(urlComponents.queryItems ?? [])")
-                
-                // Проверяем разные возможные пути
-                if urlComponents.path == "/oauth/authorize/native" ||
-                   urlComponents.path == "/oauth/authorize" ||
-                   urlComponents.host == "unsplash.com" {
-                    
-                    if let items = urlComponents.queryItems,
-                       let codeItem = items.first(where: { $0.name == "code" }) {
-                        print("🔐 [WebViewViewController]: Found code: \(codeItem.value)")
-                        return codeItem.value
-                    } else {
-                        print("🔐 [WebViewViewController]: No code found in query items")
-                    }
-                } else {
-                    print("🔐 [WebViewViewController]: Path not matched: \(urlComponents.path)")
-                }
-            }
+        if let url = navigationAction.request.url,
+           let urlComponents = URLComponents(string: url.absoluteString),
+           urlComponents.path == "/oauth/authorize/native",
+           let items = urlComponents.queryItems,
+           let codeItem = items.first(where: { $0.name == "code" }) {
+            return codeItem.value
         }
         return nil
     }

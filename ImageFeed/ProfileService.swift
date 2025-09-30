@@ -9,14 +9,16 @@ struct Profile {
 
 struct ProfileResult: Codable {
     let username: String
-    let firstName: String
-    let lastName: String
+    let firstName: String?
+    let lastName: String?
+    let name: String?
     let bio: String?
 
     private enum CodingKeys: String, CodingKey {
         case username
         case firstName = "first_name"
         case lastName = "last_name"
+        case name
         case bio
     }
 }
@@ -24,6 +26,8 @@ struct ProfileResult: Codable {
 final class ProfileService {
     static let shared = ProfileService()
     private init() {}
+
+    static let didChangeNotification = Notification.Name("ProfileServiceDidChange")
 
     private var task: URLSessionTask?
     private let urlSession = URLSession.shared
@@ -40,16 +44,25 @@ final class ProfileService {
         let task = urlSession.objectTask(for: request) { [weak self] (result: Result<ProfileResult, Error>) in
             switch result {
             case .success(let profileResult):
+                let composedName: String = {
+                    if let name = profileResult.name, !name.isEmpty { return name }
+                    let first = profileResult.firstName ?? ""
+                    let last = profileResult.lastName ?? ""
+                    let full = "\(first) \(last)".trimmingCharacters(in: .whitespaces)
+                    return full.isEmpty ? profileResult.username : full
+                }()
+
                 let profile = Profile(
                     username: profileResult.username,
-                    name: profileResult.firstName,
+                    name: composedName,
                     loginName: "@\(profileResult.username)",
                     bio: profileResult.bio
                 )
                 self?.profile = profile
+                NotificationCenter.default.post(name: ProfileService.didChangeNotification, object: nil)
                 completion(.success(profile))
             case .failure(let error):
-                print("[fetchProfile]: NetworkError - \(error.localizedDescription)")
+                print("[ProfileService.fetchProfile]: NetworkError - \(error.localizedDescription)")
                 completion(.failure(error))
             }
             self?.task = nil

@@ -1,13 +1,17 @@
 import Foundation
 
-// Используем стандартные NetworkError вместо AuthServiceError
+enum AuthServiceError: Error {
+    case invalidRequest
+}
 
 final class OAuth2Service {
     static let shared = OAuth2Service()
 
     private let dataStorage = OAuth2TokenStorage.shared
     private let urlSession = URLSession.shared
+
     private var task: URLSessionTask?
+
     private var lastCode: String?
 
     private(set) var authToken: String? {
@@ -23,47 +27,50 @@ final class OAuth2Service {
 
     func fetchOAuthToken(_ code: String, completion: @escaping (Result<String, Error>) -> Void) {
         assert(Thread.isMainThread)
-        
-        // Защита от состояния гонки: если код уже используется, возвращаем ошибку
         guard lastCode != code else {
-            completion(.failure(NetworkError.invalidRequest))
+            completion(.failure(AuthServiceError.invalidRequest))
             return
         }
-        
-        // Отменяем предыдущий запрос (если он есть) и запоминаем новый код
+
         task?.cancel()
         lastCode = code
-        
-        guard let request = makeOAuthTokenRequest(code: code) else {
-            completion(.failure(NetworkError.invalidRequest))
+        guard
+            let request = makeOAuthTokenRequest(code: code)
+        else {
+            completion(.failure(AuthServiceError.invalidRequest))
             return
         }
-        
+
         let task = urlSession.objectTask(for: request) { [weak self] (result: Result<OAuthTokenResponseBody, Error>) in
-            guard let self = self else { return }
             DispatchQueue.main.async {
-                self.task = nil
-                self.lastCode = nil
-                
+                UIBlockingProgressHUD.dismiss()
+                guard let self = self else { return }
+
                 switch result {
                 case .success(let body):
                     let authToken = body.accessToken
-                    self.authToken = authToken
-                    completion(.success(authToken))
+                    self.authToken = authToken // сохраняем в свойство
+                    completion(.success(authToken)) // возвращаем наружу
+
+                    self.task = nil
+                    self.lastCode = nil
+
                 case .failure(let error):
-                    print("[fetchOAuthToken]: NetworkError - \(error.localizedDescription)")
-                    completion(.failure(error))
+                    print("[OAuth2Service.fetchOAuthToken]: NetworkError - \(error.localizedDescription) code=\(self.lastCode ?? "nil")")
+                    completion(.failure(error)) // ошибка
+
+                    self.task = nil
+                    self.lastCode = nil
                 }
             }
         }
-        
         self.task = task
         task.resume()
     }
 
     private func makeOAuthTokenRequest(code: String) -> URLRequest? {
         guard
-            var urlComponents = URLComponents(string: "https://unsplash.com/oauth/token") 
+            var urlComponents = URLComponents(string: "https://unsplash.com/oauth/token")
         else {
             assertionFailure("Failed to create URL")
             return nil
@@ -95,4 +102,25 @@ final class OAuth2Service {
     }
 }
 
- 
+// MARK: - Network Client
+
+extension OAuth2Service {
+    private func object(for request: URLRequest, completion: @escaping (Result<OAuthTokenResponseBody, Error>) -> Void) -> URLSessionTask {
+        let decoder = JSONDecoder()
+        return urlSession.data(for: request) { (result: Result<Data, Error>) in
+            switch result {
+            case .success(let data):
+                do {
+                    let body = try decoder.decode(OAuthTokenResponseBody.self, from: data)
+                    completion(.success(body))
+                }
+                catch {
+                    completion(.failure(NetworkError.decodingError(error)))
+                }
+                
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+}

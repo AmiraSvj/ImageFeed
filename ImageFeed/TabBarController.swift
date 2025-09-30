@@ -5,6 +5,8 @@ final class TabBarController: UITabBarController {
         super.awakeFromNib()
         let storyboard = UIStoryboard(name: "Main", bundle: .main)
         let imagesListViewController = storyboard.instantiateViewController(withIdentifier: "ImagesListViewController")
+        // Иконка и параметры ленты берутся из сториборда, как в «пример пример»
+
         let profileViewController = ProfileViewController()
         profileViewController.tabBarItem = UITabBarItem(
             title: "",
@@ -12,5 +14,6 @@ final class TabBarController: UITabBarController {
             selectedImage: nil
         )
         self.viewControllers = [imagesListViewController, profileViewController]
+        self.tabBar.isTranslucent = false
     }
-} 
+}

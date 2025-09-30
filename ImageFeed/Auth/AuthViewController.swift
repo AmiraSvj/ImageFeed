@@ -14,6 +14,12 @@ final class AuthViewController: UIViewController {
         super.viewDidLoad()
         
         configureBackButton()
+        view.backgroundColor = UIColor(named: "YP Black")
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: false)
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
@@ -34,45 +40,40 @@ final class AuthViewController: UIViewController {
         navigationController?.navigationBar.backIndicatorImage = UIImage(named: "nav_back_button")
         navigationController?.navigationBar.backIndicatorTransitionMaskImage = UIImage(named: "nav_back_button")
         navigationItem.backBarButtonItem = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
-        navigationItem.backBarButtonItem?.tintColor = UIColor(named: "YP Black")
-    }
-    
-    private func showAlert() {
-        let alert = UIAlertController(
-            title: "Что-то пошло не так",
-            message: "Не удалось войти в систему",
-            preferredStyle: .alert
-        )
-        
-        let action = UIAlertAction(title: "Ок", style: .default) { _ in
-            alert.dismiss(animated: true)
-        }
-        
-        alert.addAction(action)
-        present(alert, animated: true)
+        navigationItem.backBarButtonItem?.tintColor = UIColor(named: "ypBlack")
     }
 }
 
 extension AuthViewController: WebViewViewControllerDelegate {
     func webViewViewController(_ vc: WebViewViewController, didAuthenticateWithCode code: String) {
-
-        // Скрываем WebViewViewController
-        vc.dismiss(animated: true)
-
-        // Показываем индикатор загрузки
+        // Не закрываем WebView сразу; показываем блокирующий HUD и ждём результат запроса токена
         UIBlockingProgressHUD.show()
-
         fetchOAuthToken(code) { [weak self] result in
-            // Скрываем индикатор загрузки
-            UIBlockingProgressHUD.dismiss()
-
             guard let self else { return }
 
             switch result {
             case .success:
-                self.delegate?.didAuthenticate(self)
-            case .failure:
-                self.showAlert()
+                vc.dismiss(animated: true) {
+                    // Сразу подтянем профиль и аватар
+                    if let token = OAuth2TokenStorage.shared.token {
+                        ProfileService.shared.fetchProfile(token) { result in
+                            if case let .success(profile) = result {
+                                ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
+                            }
+                        }
+                    }
+                    // Переходим на таббар как корень
+                    if let window = UIApplication.shared.windows.first {
+                        let tabBarController = UIStoryboard(name: "Main", bundle: .main)
+                            .instantiateViewController(withIdentifier: "TabBarViewController")
+                        window.rootViewController = tabBarController
+                        window.makeKeyAndVisible()
+                    }
+                    self.delegate?.didAuthenticate(self)
+                }
+            case let .failure(error):
+                print("[AuthViewController.fetchOAuthToken]: NetworkError - \(error.localizedDescription)")
+                self.showAuthErrorAlert()
             }
         }
     }
@@ -88,4 +89,17 @@ extension AuthViewController {
             completion(result)
         }
     }
-} 
+}
+
+extension AuthViewController {
+    func showAuthErrorAlert() {
+        let alertController = UIAlertController(
+            title: "Что-то пошло не так(",
+            message: "Не удалось войти в систему",
+            preferredStyle: .alert
+        )
+        let okAction = UIAlertAction(title: "Ок", style: .default, handler: nil)
+        alertController.addAction(okAction)
+        present(alertController, animated: true, completion: nil)
+    }
+}
