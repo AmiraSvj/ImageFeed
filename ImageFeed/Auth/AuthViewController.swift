@@ -54,21 +54,7 @@ extension AuthViewController: WebViewViewControllerDelegate {
             switch result {
             case .success:
                 vc.dismiss(animated: true) {
-                    // Сразу подтянем профиль и аватар
-                    if let token = OAuth2TokenStorage.shared.token {
-                        ProfileService.shared.fetchProfile(token) { result in
-                            if case let .success(profile) = result {
-                                ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
-                            }
-                        }
-                    }
-                    // Переходим на таббар как корень
-                    if let window = UIApplication.shared.windows.first {
-                        let tabBarController = UIStoryboard(name: "Main", bundle: .main)
-                            .instantiateViewController(withIdentifier: "TabBarViewController")
-                        window.rootViewController = tabBarController
-                        window.makeKeyAndVisible()
-                    }
+                    // Делегируем SplashViewController: он загрузит профиль и переключит root
                     self.delegate?.didAuthenticate(self)
                 }
             case let .failure(error):
