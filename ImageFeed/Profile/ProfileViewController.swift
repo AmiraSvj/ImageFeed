@@ -12,6 +12,7 @@ final class ProfileViewController: UIViewController {
 
     private var profileImageServiceObserver: NSObjectProtocol?
     private var profileServiceObserver: NSObjectProtocol?
+    private var gradientViews: [AnimatedGradientView] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -44,14 +45,37 @@ final class ProfileViewController: UIViewController {
         updateAvatar()
         fetchIfNeeded()
     }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        // Убеждаемся, что анимации остановлены, если профиль уже загружен
+        if ProfileService.shared.profile != nil {
+            stopGradientAnimations()
+        }
+    }
 
     private func fetchIfNeeded() {
         if ProfileService.shared.profile == nil, let token = OAuth2TokenStorage.shared.token {
-            ProfileService.shared.fetchProfile(token) { result in
-                if case let .success(profile) = result {
-                    ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
+            // Запускаем анимации только когда начинаем реальную загрузку
+            setupGradientAnimations()
+            
+            ProfileService.shared.fetchProfile(token) { [weak self] result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let profile):
+                        ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
+                        // Останавливаем анимации после успешной загрузки
+                        self?.stopGradientAnimations()
+                    case .failure:
+                        // Останавливаем анимации даже при ошибке
+                        self?.stopGradientAnimations()
+                    }
                 }
             }
+        } else {
+            // Если профиль уже загружен, останавливаем анимации
+            stopGradientAnimations()
         }
     }
 
@@ -80,6 +104,7 @@ final class ProfileViewController: UIViewController {
                     print(value.image)
                     print(value.cacheType)
                     print(value.source)
+                    // Анимации уже остановлены в fetchIfNeeded
                 case .failure(let error):
                     print(error)
                 }
@@ -96,32 +121,103 @@ final class ProfileViewController: UIViewController {
         descriptionLabel.text = (profile.bio?.isEmpty ?? true)
         ? "Профиль не заполнен"
         : profile.bio
+        
+        // Анимации уже остановлены в fetchIfNeeded
     }
 
     @IBAction func didTapLogoutButton() {
-        // Очищаем токен
-        OAuth2TokenStorage.shared.token = nil
+        showLogoutConfirmation()
+    }
+    
+    private func showLogoutConfirmation() {
+        let alert = UIAlertController(
+            title: "Пока, пока!",
+            message: "Уверены, что хотите выйти?",
+            preferredStyle: .alert
+        )
         
-        // Очищаем данные профиля
-        ProfileService.shared.clearProfile()
-        ProfileImageService.shared.clearAvatarURL()
+        alert.addAction(UIAlertAction(title: "Нет", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Да, выйти", style: .destructive) { [weak self] _ in
+            self?.performLogout()
+        })
         
-        // Очищаем веб‑куки/данные сайтов (чтобы Unsplash не помнил сессию)
-        let dataStore = WKWebsiteDataStore.default()
-        let types = WKWebsiteDataStore.allWebsiteDataTypes()
-        dataStore.fetchDataRecords(ofTypes: types) { records in
-            dataStore.removeData(ofTypes: types, for: records) {}
+        present(alert, animated: true)
+    }
+    
+    private func performLogout() {
+        // Показываем индикатор загрузки
+        UIBlockingProgressHUD.show()
+        
+        // Выполняем логаут
+        ProfileLogoutService.shared.logout()
+        
+        // Скрываем индикатор и переходим на экран авторизации
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            UIBlockingProgressHUD.dismiss()
+            self.switchToSplashScreen()
         }
-        
-        // Переключаемся на AuthViewController внутри UINavigationController
-        guard let window = UIApplication.shared.windows.first else {
+    }
+    
+    private func switchToSplashScreen() {
+        // Переключаемся на SplashViewController
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
             assertionFailure("Invalid window configuration")
             return
         }
+        
         let storyboard = UIStoryboard(name: "Main", bundle: .main)
-        let authVC = storyboard.instantiateViewController(withIdentifier: "AuthViewController") as! AuthViewController
-        let nav = UINavigationController(rootViewController: authVC)
-        window.rootViewController = nav
-        window.makeKeyAndVisible()
+        let splashVC = storyboard.instantiateViewController(withIdentifier: "SplashViewController")
+        
+        // Анимированный переход
+        UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve) {
+            window.rootViewController = splashVC
+        }
+    }
+    
+    private func setupGradientAnimations() {
+        print("🎬 [ProfileViewController] Запускаем анимации загрузки профиля")
+        
+        addGradientToView(avatarImageView)
+        addGradientToView(nameLabel)
+        addGradientToView(loginNameLabel)
+        addGradientToView(descriptionLabel)
+        
+        // Запускаем анимации
+        gradientViews.forEach { $0.startAnimation() }
+    }
+    
+    private func addGradientToView(_ view: UIView) {
+        let gradientView = AnimatedGradientView()
+        gradientView.translatesAutoresizingMaskIntoConstraints = false
+        gradientView.isUserInteractionEnabled = false
+        
+        // Добавляем градиент как дочерний элемент к конкретному view, а не к self.view
+        view.addSubview(gradientView)
+        gradientViews.append(gradientView)
+        
+        NSLayoutConstraint.activate([
+            gradientView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            gradientView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            gradientView.topAnchor.constraint(equalTo: view.topAnchor),
+            gradientView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+    
+    private func stopGradientAnimations() {
+        print("🛑 [ProfileViewController] Останавливаем анимации профиля")
+        print("🔍 [ProfileViewController] Количество градиентных view: \(gradientViews.count)")
+        
+        gradientViews.forEach { gradientView in
+            gradientView.stopAnimation()
+            gradientView.removeFromSuperview()
+        }
+        gradientViews.removeAll()
+        
+        print("✅ [ProfileViewController] Анимации остановлены")
+    }
+    
+    deinit {
+        stopGradientAnimations()
     }
 } 

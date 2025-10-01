@@ -50,3 +50,16 @@ struct LinksResult: Codable {
         case downloadLocation = "download_location"
     }
 }
+
+// MARK: - LikeResponse
+struct LikeResponse: Codable {
+    let photo: PhotoResult
+    let user: LikeUserResult
+}
+
+// MARK: - LikeUserResult
+struct LikeUserResult: Codable {
+    let id: String
+    let username: String
+    let name: String
+}

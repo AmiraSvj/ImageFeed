@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 struct Profile {
     let username: String
@@ -63,6 +64,31 @@ final class ProfileService {
                 completion(.success(profile))
             case .failure(let error):
                 print("[ProfileService.fetchProfile]: NetworkError - \(error.localizedDescription)")
+                
+                // Обрабатываем ошибку 403 (Rate Limit)
+                if let networkError = error as? NetworkError,
+                   case .httpStatusCode(403) = networkError {
+                    print("⚠️ [ProfileService] Превышен лимит запросов к Unsplash API")
+                    // Показываем уведомление пользователю только если нет других алертов
+                    DispatchQueue.main.async {
+                        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                              let window = windowScene.windows.first,
+                              window.rootViewController?.presentedViewController == nil else {
+                            print("⚠️ [ProfileService] Алерт уже показан, пропускаем")
+                            return
+                        }
+                        
+                        let alert = UIAlertController(
+                            title: "Превышен лимит запросов",
+                            message: "Превышен лимит запросов к Unsplash API. Попробуйте позже.",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default))
+                        
+                        window.rootViewController?.present(alert, animated: true)
+                    }
+                }
+                
                 completion(.failure(error))
             }
             self?.task = nil
