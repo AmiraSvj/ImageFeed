@@ -1,10 +1,13 @@
 import UIKit
+import Kingfisher
 
 final class PhotoFeedController: UIViewController {
     
     @IBOutlet private var feedTable: UITableView!
     
-    private let imageNames: [String] = (0..<20).map { String($0) }
+    private let imagesListService = ImagesListService.shared
+    private var photos: [Photo] = []
+    private var photosObserver: NSObjectProtocol?
     
     private lazy var localizedDateFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -16,6 +19,13 @@ final class PhotoFeedController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+        setupNotificationObserver()
+        imagesListService.fetchPhotosNextPage()
+    }
+    
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        removeNotificationObserver()
     }
     
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -36,7 +46,7 @@ final class PhotoFeedController: UIViewController {
 // MARK: - UITableViewDataSource
 extension PhotoFeedController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return imageNames.count
+        return photos.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -51,28 +61,69 @@ extension PhotoFeedController: UITableViewDataSource {
 extension PhotoFeedController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard let img = UIImage(named: imageNames[indexPath.row]) else { return }
+        let photo = photos[indexPath.row]
         let vc = ProgrammaticImageViewController()
-        vc.image = img
+        vc.fullImageURL = photo.largeImageURL
         vc.modalPresentationStyle = .fullScreen
         present(vc, animated: true)
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        guard let img = UIImage(named: imageNames[indexPath.row]) else { return 200 }
+        let photo = photos[indexPath.row]
         let insets = UIEdgeInsets(top: 4, left: 16, bottom: 4, right: 16)
         let width = tableView.bounds.width - insets.left - insets.right
-        let scale = width / img.size.width
-        return img.size.height * scale + insets.top + insets.bottom
+        let scale = width / photo.size.width
+        return photo.size.height * scale + insets.top + insets.bottom
+    }
+    
+    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        if indexPath.row + 1 == photos.count {
+            imagesListService.fetchPhotosNextPage()
+        }
     }
 }
 
 // MARK: - Private Methods
 private extension PhotoFeedController {
     func configure(cell: PhotoFeedCell, at indexPath: IndexPath) {
-        guard let img = UIImage(named: imageNames[indexPath.row]) else { return }
-        let isLiked = indexPath.row.isMultiple(of: 2)
-        let date = localizedDateFormatter.string(from: Date())
-        cell.configure(with: img, date: date, isLiked: isLiked)
+        let photo = photos[indexPath.row]
+        
+        // Загружаем изображение через Kingfisher
+        if let url = URL(string: photo.thumbImageURL) {
+            cell.configure(with: url, date: formatDate(photo.createdAt), isLiked: photo.isLiked)
+        }
+    }
+    
+    func formatDate(_ date: Date?) -> String {
+        guard let date = date else { return "" }
+        return localizedDateFormatter.string(from: date)
+    }
+    
+    func setupNotificationObserver() {
+        photosObserver = NotificationCenter.default.addObserver(
+            forName: ImagesListService.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updatePhotos()
+        }
+    }
+    
+    func removeNotificationObserver() {
+        if let observer = photosObserver {
+            NotificationCenter.default.removeObserver(observer)
+            photosObserver = nil
+        }
+    }
+    
+    func updatePhotos() {
+        let oldCount = photos.count
+        photos = imagesListService.photos
+        let newCount = photos.count
+        
+        if newCount > oldCount {
+            let indexPaths = (oldCount..<newCount).map { IndexPath(row: $0, section: 0) }
+            feedTable.insertRows(at: indexPaths, with: .automatic)
+        }
     }
 }

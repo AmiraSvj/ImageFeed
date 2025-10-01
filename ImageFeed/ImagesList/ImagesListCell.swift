@@ -1,4 +1,5 @@
 import UIKit
+import Kingfisher
 
 final class PhotoFeedCell: UITableViewCell {
     
@@ -11,13 +12,18 @@ final class PhotoFeedCell: UITableViewCell {
         setupUI()
     }
     
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        previewImage.kf.cancelDownloadTask()
+    }
+    
     private func setupUI() {
         backgroundColor = .clear
         selectionStyle = .none
     }
     
-    func configure(with image: UIImage, date: String, isLiked: Bool) {
-        previewImage.image = image
+    func configure(with url: URL, date: String, isLiked: Bool) {
+        previewImage.kf.setImage(with: url)
         dateText.text = date
         let likeIcon = isLiked ? UIImage(named: "like_button_on") : UIImage(named: "like_button_off")
         likeBtn.setImage(likeIcon, for: .normal)

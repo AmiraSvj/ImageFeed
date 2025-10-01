@@ -1,7 +1,9 @@
 import UIKit
+import Kingfisher
 
 final class ProgrammaticImageViewController: UIViewController, UIScrollViewDelegate {
     var image: UIImage?
+    var fullImageURL: String?
 
     private let scrollView: UIScrollView = {
         let sv = UIScrollView()
@@ -71,9 +73,7 @@ final class ProgrammaticImageViewController: UIViewController, UIScrollViewDeleg
         closeButton.addTarget(self, action: #selector(didTapClose), for: .touchUpInside)
         shareButton.addTarget(self, action: #selector(didTapShare), for: .touchUpInside)
 
-        if let image {
-            imageView.image = image
-        }
+        loadImage()
     }
 
     override func viewDidLayoutSubviews() {
@@ -105,9 +105,27 @@ final class ProgrammaticImageViewController: UIViewController, UIScrollViewDeleg
     }
 
     @objc private func didTapShare() {
-        guard let img = image else { return }
+        guard let img = imageView.image else { return }
         let vc = UIActivityViewController(activityItems: [img], applicationActivities: nil)
         present(vc, animated: true)
+    }
+    
+    private func loadImage() {
+        if let image = image {
+            imageView.image = image
+        } else if let urlString = fullImageURL, let url = URL(string: urlString) {
+            imageView.kf.setImage(with: url) { [weak self] result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let value):
+                        self?.image = value.image
+                        self?.rescaleAndCenter()
+                    case .failure(let error):
+                        print("Ошибка загрузки изображения: \(error)")
+                    }
+                }
+            }
+        }
     }
 }
 
