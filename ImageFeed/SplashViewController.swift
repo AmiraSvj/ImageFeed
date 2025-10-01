@@ -1,75 +1,108 @@
 import UIKit
 
-class SplashViewController: UIViewController {
-    
-    private let storage = OAuth2TokenStorage()
-    
+final class SplashViewController: UIViewController {
+    private let showAuthenticationScreenSegueIdentifier = "ShowAuthenticationScreen"
+
+    private let profileService = ProfileService.shared
+    private let storage = OAuth2TokenStorage.shared
+    private var isPresentingAuth: Bool = false
+
+    private let logoImageView: UIImageView = {
+        let imageView = UIImageView(image: UIImage(named: "splash_screen_logo"))
+        imageView.contentMode = .scaleAspectFit
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        return imageView
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupUI()
+        view.backgroundColor = UIColor(named: "YP Black")
+        setupLayout()
     }
-    
-    override var preferredStatusBarStyle: UIStatusBarStyle {
-        return .lightContent
-    }
-    
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        
-        print("🚀 SplashViewController viewDidAppear")
-        print("🔑 Token exists: \(storage.token != nil)")
-        
-        if storage.token != nil {
-            print("✅ User is authenticated, switching to TabBarController")
-            switchToTabBarController()
+
+        if let token = storage.token {
+            fetchProfile(token: token)
         } else {
-            print("❌ No token, showing authentication screen")
-            // Показываем экран авторизации через segue
-            performSegue(withIdentifier: "ShowAuthenticationScreen", sender: nil)
+            // Сразу открываем авторизацию, чтобы не было промежуточного экрана
+            presentAuth()
         }
     }
-    
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         setNeedsStatusBarAppearanceUpdate()
     }
-    
-    private func setupUI() {
-        view.backgroundColor = UIColor(named: "YP Black")
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        .lightContent
     }
-    
+
+    private func setupLayout() {
+        view.addSubview(logoImageView)
+        NSLayoutConstraint.activate([
+            logoImageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            logoImageView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            logoImageView.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.5),
+            logoImageView.heightAnchor.constraint(lessThanOrEqualTo: view.heightAnchor, multiplier: 0.5)
+        ])
+    }
+
     private func switchToTabBarController() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
+        guard let window = UIApplication.shared.windows.first else {
             assertionFailure("Invalid window configuration")
             return
         }
-        
-        // Получаем TabBarController из сториборда
-        let storyboard = UIStoryboard(name: "Main", bundle: nil)
-        guard let tabBarController = storyboard.instantiateViewController(withIdentifier: "TabBarViewController") as? UITabBarController else {
-            assertionFailure("Failed to instantiate TabBarController from storyboard")
+        let tabBarController = UIStoryboard(name: "Main", bundle: .main)
+            .instantiateViewController(withIdentifier: "TabBarViewController")
+        window.rootViewController = tabBarController
+    }
+
+    // Кнопки на сплеше не показываем — он должен выглядеть как Launch Screen
+
+    private func presentAuth() {
+        guard !isPresentingAuth, presentedViewController == nil else { return }
+        isPresentingAuth = true
+
+        let storyboard = UIStoryboard(name: "Main", bundle: .main)
+        guard let authViewController = storyboard.instantiateViewController(withIdentifier: "AuthViewController") as? AuthViewController else {
+            assertionFailure("Failed to instantiate AuthViewController from storyboard")
+            isPresentingAuth = false
             return
         }
-        
-        window.rootViewController = tabBarController
-        
-        // Обновляем статус бар
-        tabBarController.setNeedsStatusBarAppearanceUpdate()
+        authViewController.delegate = self
+        let navController = UINavigationController(rootViewController: authViewController)
+        navController.modalPresentationStyle = .fullScreen
+        present(navController, animated: true)
     }
-    
-    private func showAuthViewController() {
-        // Используем segue из сториборда
-        performSegue(withIdentifier: "ShowAuthenticationScreen", sender: nil)
-    }
-    
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        if segue.identifier == "ShowAuthenticationScreen" {
-            if let navigationController = segue.destination as? UINavigationController,
-               let authViewController = navigationController.topViewController as? AuthViewController {
-                // Делегат больше не нужен, так как AuthViewController сам обрабатывает успешную авторизацию
-                print("🔗 Connected to AuthViewController")
+
+    private func fetchProfile(token: String) {
+        profileService.fetchProfile(token) { [weak self] result in
+            guard let self = self else { return }
+
+            switch result {
+            case let .success(profile):
+                ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
+                self.switchToTabBarController()
+
+            case let .failure(error):
+                print(error)
+                self.isPresentingAuth = false
             }
         }
     }
-} 
+}
+
+extension SplashViewController: AuthViewControllerDelegate {
+    func didAuthenticate(_ vc: AuthViewController) {
+        vc.dismiss(animated: true) { [weak self] in
+            guard let self = self else { return }
+            self.isPresentingAuth = false
+            if let token = self.storage.token {
+                self.fetchProfile(token: token)
+            }
+        }
+    }
+}

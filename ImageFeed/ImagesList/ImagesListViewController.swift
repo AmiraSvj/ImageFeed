@@ -50,8 +50,12 @@ extension PhotoFeedController: UITableViewDataSource {
 // MARK: - UITableViewDelegate
 extension PhotoFeedController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        print("Selected image at index: \(indexPath.row)")
         tableView.deselectRow(at: indexPath, animated: true)
+        guard let img = UIImage(named: imageNames[indexPath.row]) else { return }
+        let vc = ProgrammaticImageViewController()
+        vc.image = img
+        vc.modalPresentationStyle = .fullScreen
+        present(vc, animated: true)
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
