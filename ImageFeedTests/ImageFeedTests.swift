@@ -5,19 +5,20 @@
 //  Created by ameera on 02.07.2025.
 //
 
-import Testing
+import XCTest
+import Foundation
 @testable import ImageFeed
 
-struct ImageFeedTests {
+final class ImageFeedTests: XCTestCase {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    func testExample() {
+        // Write your test here and use APIs like XCTAssert to check expected conditions.
     }
     
-    @Test func testFetchPhotos() async throws {
+    func testFetchPhotos() {
         let service = ImagesListService.shared
         
-        let expectation = Expectation()
+        let expectation = XCTestExpectation(description: "Photos loaded")
         var notificationReceived = false
         
         NotificationCenter.default.addObserver(
@@ -32,10 +33,10 @@ struct ImageFeedTests {
         service.fetchPhotosNextPage()
         
         // Ждем уведомление в течение 10 секунд
-        try await expectation.wait(for: .seconds(10))
+        wait(for: [expectation], timeout: 10.0)
         
-        #expect(notificationReceived, "Ожидалось получение уведомления о загрузке фотографий")
-        #expect(service.photos.count == 10, "Ожидалось загрузка 10 фотографий, получено: \(service.photos.count)")
+        XCTAssertTrue(notificationReceived, "Ожидалось получение уведомления о загрузке фотографий")
+        XCTAssertEqual(service.photos.count, 10, "Ожидалось загрузка 10 фотографий, получено: \(service.photos.count)")
     }
 
 }
