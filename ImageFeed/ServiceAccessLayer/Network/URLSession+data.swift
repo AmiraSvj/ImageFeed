@@ -5,6 +5,8 @@ enum NetworkError: Error {
     case urlRequestError(Error)
     case urlSessionError
     case invalidRequest
+    case unauthorized
+    case noData
     case decodingError(Error)
 }
 
@@ -20,18 +22,25 @@ extension URLSession {
         }
         
         let task = dataTask(with: request, completionHandler: { data, response, error in
+            print("🔍 [URLSession] Получен ответ: data=\(data != nil ? "есть" : "нет"), response=\(response != nil ? "есть" : "нет"), error=\(error?.localizedDescription ?? "нет")")
+            
             if let data = data, let response = response, let statusCode = (response as? HTTPURLResponse)?.statusCode {
+                print("📊 [URLSession] HTTP статус: \(statusCode)")
                 if 200 ..< 300 ~= statusCode {
+                    print("✅ [URLSession] Успешный ответ, размер данных: \(data.count) байт")
                     fulfillCompletionOnTheMainThread(.success(data))
                 } else {
-                    print("[dataTask]: NetworkError - код ошибки \(statusCode)")
+                    print("❌ [URLSession] HTTP ошибка - код \(statusCode)")
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("📄 [URLSession] Ответ сервера: \(responseString)")
+                    }
                     fulfillCompletionOnTheMainThread(.failure(NetworkError.httpStatusCode(statusCode)))
                 }
             } else if let error = error {
-                print("[dataTask]: NetworkError - \(error.localizedDescription)")
+                print("❌ [URLSession] Ошибка запроса: \(error.localizedDescription)")
                 fulfillCompletionOnTheMainThread(.failure(NetworkError.urlRequestError(error)))
             } else {
-                print("[dataTask]: NetworkError - urlSessionError")
+                print("❌ [URLSession] Неизвестная ошибка")
                 fulfillCompletionOnTheMainThread(.failure(NetworkError.urlSessionError))
             }
         })
@@ -50,15 +59,21 @@ extension URLSession {
         let task = data(for: request) { (result: Result<Data, Error>) in
             switch result {
             case .success(let data):
+                print("🔍 [URLSession] Начинаем декодирование данных размером \(data.count) байт")
                 do {
                     let decodedObject = try decoder.decode(T.self, from: data)
+                    print("✅ [URLSession] Декодирование успешно завершено")
                     completion(.success(decodedObject))
                 } catch {
-                    print("Ошибка декодирования: \(error.localizedDescription), Данные: \(String(data: data, encoding: .utf8) ?? "")")
+                    print("❌ [URLSession] Ошибка декодирования: \(error.localizedDescription)")
+                    if let dataString = String(data: data, encoding: .utf8) {
+                        print("📄 [URLSession] Данные для декодирования: \(dataString.prefix(500))...")
+                    }
                     completion(.failure(NetworkError.decodingError(error)))
                 }
 
             case .failure(let error):
+                print("❌ [URLSession] Ошибка получения данных: \(error.localizedDescription)")
                 completion(.failure(error))
             }
         }

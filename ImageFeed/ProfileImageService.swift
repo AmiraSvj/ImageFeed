@@ -76,4 +76,8 @@ final class ProfileImageService {
         avatarURL = nil
         print("🔐 [ProfileImageService]: URL аватара очищен")
     }
+    
+    func clearAvatar() {
+        clearAvatarURL()
+    }
 } 

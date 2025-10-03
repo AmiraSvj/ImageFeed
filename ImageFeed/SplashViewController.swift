@@ -22,10 +22,32 @@ final class SplashViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-
+        
+        // Анимируем появление логотипа
+        animateLogoAppearance()
+    }
+    
+    private func animateLogoAppearance() {
+        // Начальное состояние - логотип прозрачный и увеличенный
+        logoImageView.alpha = 0
+        logoImageView.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
+        
+        // Анимация появления
+        UIView.animate(withDuration: 1.0, delay: 0.2, usingSpringWithDamping: 0.8, initialSpringVelocity: 0.5, options: [.curveEaseOut], animations: {
+            self.logoImageView.alpha = 1.0
+            self.logoImageView.transform = .identity
+        }) { _ in
+            // После анимации логотипа проверяем авторизацию
+            self.checkAuthentication()
+        }
+    }
+    
+    private func checkAuthentication() {
         if let token = storage.token {
+            print("🔑 [SplashViewController] Токен найден: \(token.prefix(10))...")
             fetchProfile(token: token)
         } else {
+            print("❌ [SplashViewController] Токен не найден, показываем авторизацию")
             // Сразу открываем авторизацию, чтобы не было промежуточного экрана
             presentAuth()
         }
@@ -51,6 +73,7 @@ final class SplashViewController: UIViewController {
     }
 
     private func switchToTabBarController() {
+        print("🔄 [SplashViewController] Переключаемся на TabBarController...")
         guard let window = UIApplication.shared.windows.first else {
             assertionFailure("Invalid window configuration")
             return
@@ -58,6 +81,7 @@ final class SplashViewController: UIViewController {
         let tabBarController = UIStoryboard(name: "Main", bundle: .main)
             .instantiateViewController(withIdentifier: "TabBarViewController")
         window.rootViewController = tabBarController
+        print("✅ [SplashViewController] Переключение завершено")
     }
 
     // Кнопки на сплеше не показываем — он должен выглядеть как Launch Screen
@@ -79,17 +103,35 @@ final class SplashViewController: UIViewController {
     }
 
     private func fetchProfile(token: String) {
+        print("🔑 [SplashViewController] Токен найден, загружаем профиль...")
+        
+        // Показываем анимацию загрузки
+        UIBlockingProgressHUD.show()
+        
         profileService.fetchProfile(token) { [weak self] result in
             guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                UIBlockingProgressHUD.dismiss()
+                
+                switch result {
+                case let .success(profile):
+                    print("✅ [SplashViewController] Профиль загружен: \(profile.username)")
+                    ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
+                    self.switchToTabBarController()
 
-            switch result {
-            case let .success(profile):
-                ProfileImageService.shared.fetchProfileImageURL(username: profile.username) { _ in }
-                self.switchToTabBarController()
-
-            case let .failure(error):
-                print(error)
-                self.isPresentingAuth = false
+                case let .failure(error):
+                    print("❌ [SplashViewController] Ошибка загрузки профиля: \(error)")
+                    
+                    // Если ошибка 403 (Rate Limit), все равно переходим к приложению
+                    if let networkError = error as? NetworkError,
+                       case .httpStatusCode(403) = networkError {
+                        print("⚠️ [SplashViewController] Превышен лимит API, но переходим к приложению")
+                        self.switchToTabBarController()
+                    } else {
+                        self.isPresentingAuth = false
+                    }
+                }
             }
         }
     }

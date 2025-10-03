@@ -1,4 +1,5 @@
 import UIKit
+import ProgressHUD
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,6 +8,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         configureAppearance()
+        configureProgressHUD()
         ensureFirstRunState()
         return true
     }
@@ -45,6 +47,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         UITabBar.appearance().tintColor = .white
         UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.3)
+    }
+    
+    private func configureProgressHUD() {
+        ProgressHUD.animationType = .circleStrokeSpin
+        ProgressHUD.colorHUD = .white
+        ProgressHUD.colorAnimation = .black
     }
 
     private func ensureFirstRunState() {
