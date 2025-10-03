@@ -3,16 +3,16 @@ import Kingfisher
 
 final class PhotoFeedController: UIViewController {
     
-    @IBOutlet private var feedTable: UITableView!
+    @IBOutlet var feedTable: UITableView!
     
     private let imagesListService = ImagesListService.shared
     
-    private var photos: [Photo] = []
+    var photos: [Photo] = []
     private var photosObserver: NSObjectProtocol?
-    private var isLikeRequestInProgress = false
-    private var isLoadingMorePhotos = false
+    var isLikeRequestInProgress = false
+    var isLoadingMorePhotos = false
     
-    private lazy var localizedDateFormatter: DateFormatter = {
+    lazy var localizedDateFormatter: DateFormatter = {
         let df = DateFormatter()
         df.dateStyle = .medium
         df.timeStyle = .none
@@ -45,7 +45,7 @@ final class PhotoFeedController: UIViewController {
         return .lightContent
     }
 
-    private func setupUI() {
+    func setupUI() {
         view.backgroundColor = UIColor(named: "YP Black")
         
         feedTable.backgroundColor = UIColor(named: "YP Black")

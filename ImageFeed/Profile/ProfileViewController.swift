@@ -111,7 +111,7 @@ final class ProfileViewController: UIViewController {
             }
     }
     
-    private func updateProfileDetails(profile: Profile) {
+    func updateProfileDetails(profile: Profile) {
         nameLabel.text = profile.name.isEmpty
         ? "Имя не указано"
         : profile.name
